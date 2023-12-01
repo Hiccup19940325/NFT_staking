@@ -1,127 +1,136 @@
 import {
-  time,
-  loadFixture,
+    time,
+    loadFixture,
 } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { SignerWithAddress } from '@nomicfoundation/hardhat-ethers/dist/src/signer-with-address'
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import {
+    StakingToken,
+    RewardToken,
+    NFTStaking
+} from '../typechain-types'
 
-describe("Lock", function () {
-  // We define a fixture to reuse the same setup in every test.
-  // We use loadFixture to run this setup once, snapshot that state,
-  // and reset Hardhat Network to that snapshot in every test.
-  async function deployOneYearLockFixture() {
-    const ONE_YEAR_IN_SECS = 365 * 24 * 60 * 60;
-    const ONE_GWEI = 1_000_000_000;
+import {
+    ether,
+    deployStakingToken,
+    deployNFTStaking,
+    deployRewardToken
+} from './helper'
 
-    const lockedAmount = ONE_GWEI;
-    const unlockTime = (await time.latest()) + ONE_YEAR_IN_SECS;
+describe("NFTStaking", function () {
+    let owner: SignerWithAddress;
+    let alice: SignerWithAddress;
+    let bob: SignerWithAddress;
+    let john: SignerWithAddress;
 
-    // Contracts are deployed using the first signer/account by default
-    const [owner, otherAccount] = await ethers.getSigners();
+    let stakingToken: StakingToken;
+    let rewardToken: RewardToken;
+    let nftStaking: NFTStaking;
 
-    const Lock = await ethers.getContractFactory("Lock");
-    const lock = await Lock.deploy(unlockTime, { value: lockedAmount });
+    before(async () => {
+        const signer: SignerWithAddress[] = await ethers.getSigners();
 
-    return { lock, unlockTime, lockedAmount, owner, otherAccount };
-  }
+        owner = signer[0];
+        alice = signer[1];
+        bob = signer[2];
+        john = signer[3];
 
-  describe("Deployment", function () {
-    it("Should set the right unlockTime", async function () {
-      const { lock, unlockTime } = await loadFixture(deployOneYearLockFixture);
+        stakingToken = await deployStakingToken();
+        await stakingToken.mint(alice.address, 0);
+        await stakingToken.mint(alice.address, 1);
+        await stakingToken.mint(alice.address, 2);
+        await stakingToken.mint(alice.address, 3);
+        await stakingToken.mint(alice.address, 4);
 
-      expect(await lock.unlockTime()).to.equal(unlockTime);
+        await stakingToken.mint(bob.address, 5);
+        await stakingToken.mint(bob.address, 6);
+        await stakingToken.mint(bob.address, 7);
+
+        rewardToken = await deployRewardToken();
+
+        nftStaking = await deployNFTStaking(stakingToken.getAddress(), rewardToken.getAddress(), 1e6);
+
+        await rewardToken.mint(nftStaking.getAddress(), ether(100));
+
+    })
+
+    describe("Stake", function () {
+        it("Failed - empty tokenId", async function () {
+            await expect(nftStaking.stake([])).to.be.revertedWith("amount should be more than 0");
+        });
+
+        it("Success", async function () {
+
+            await stakingToken.connect(alice).approve(nftStaking.getAddress(), 0);
+            await stakingToken.connect(alice).approve(nftStaking.getAddress(), 1);
+            await stakingToken.connect(alice).approve(nftStaking.getAddress(), 2);
+            await stakingToken.connect(alice).approve(nftStaking.getAddress(), 3);
+            await stakingToken.connect(bob).approve(nftStaking.getAddress(), 5);
+            await stakingToken.connect(bob).approve(nftStaking.getAddress(), 6);
+
+            const pending0 = await nftStaking.connect(bob).pendingRewards();
+            expect(pending0).to.equal(0n);
+
+            await nftStaking.connect(alice).stake([0, 1, 2, 3]);
+        });
+
+        it("Success - confirm the stakingPool balance", async function () {
+            expect(await stakingToken.balanceOf(nftStaking.getAddress())).to.equal(4n)
+        });
+
+        it("Success - confirm the staker info", async function () {
+            const stakerInfo = await nftStaking.stakers(alice.address);
+            expect(stakerInfo).to.eql([4n, 0n]);
+
+            const token = await nftStaking.viewStakeInfo(alice.address)
+            expect(await nftStaking.viewStakeInfo(alice.address)).to.eql([0n, 1n, 2n, 3n]);
+        });
     });
 
-    it("Should set the right owner", async function () {
-      const { lock, owner } = await loadFixture(deployOneYearLockFixture);
+    describe("Claim", function () {
+        it("Success - confirm the reward increase", async function () {
+            const balance0 = await rewardToken.balanceOf(alice.address);
 
-      expect(await lock.owner()).to.equal(owner.address);
+            await nftStaking.connect(bob).stake([5, 6]);
+
+            const pending = await nftStaking.connect(alice).pendingRewards();
+            expect(pending).to.gt(0n);
+
+            await nftStaking.connect(alice).claimRewards();
+            const balance1 = await rewardToken.balanceOf(alice.address);
+            expect(balance0).to.lt(balance1);
+        });
     });
 
-    it("Should receive and store the funds to lock", async function () {
-      const { lock, lockedAmount } = await loadFixture(
-        deployOneYearLockFixture
-      );
+    describe("Withdraw", function () {
+        it("Failed - amount should be more than 0", async function () {
+            await expect(nftStaking.connect(john).withDraw([])).to.be.revertedWith("amount should be more than 0")
+        });
 
-      expect(await ethers.provider.getBalance(lock.target)).to.equal(
-        lockedAmount
-      );
+        it("Failed - John is not a staker", async function () {
+            await expect(nftStaking.connect(john).withDraw([0])).to.be.revertedWith("you are not a staker")
+        });
+
+        it("Failed - withdrawl tokens are more than your staked amount", async function () {
+            await expect(nftStaking.connect(bob).withDraw([0, 1, 2, 3, 4, 5, 6])).to.be.revertedWith("your staked tokens is less than your required tokens")
+        });
+
+        it("Failed - tokenId 0 is not bob's token", async function () {
+            await expect(nftStaking.connect(bob).withDraw([0])).to.be.revertedWith("it is not token you staked")
+        });
+
+        it("Success - confirm the staker's tokenId", async function () {
+            await nftStaking.connect(alice).withDraw([0]);
+            const token = await nftStaking.viewStakeInfo(alice.address);
+            expect(token).to.eql([3n, 1n, 2n])
+        });
+
+        it("Success - confirm the staker's tokenId after rewithdraw", async function () {
+            await nftStaking.connect(alice).withDraw([3]);
+            const token = await nftStaking.viewStakeInfo(alice.address);
+            expect(token).to.eql([2n, 1n])
+        });
     });
-
-    it("Should fail if the unlockTime is not in the future", async function () {
-      // We don't use the fixture here because we want a different deployment
-      const latestTime = await time.latest();
-      const Lock = await ethers.getContractFactory("Lock");
-      await expect(Lock.deploy(latestTime, { value: 1 })).to.be.revertedWith(
-        "Unlock time should be in the future"
-      );
-    });
-  });
-
-  describe("Withdrawals", function () {
-    describe("Validations", function () {
-      it("Should revert with the right error if called too soon", async function () {
-        const { lock } = await loadFixture(deployOneYearLockFixture);
-
-        await expect(lock.withdraw()).to.be.revertedWith(
-          "You can't withdraw yet"
-        );
-      });
-
-      it("Should revert with the right error if called from another account", async function () {
-        const { lock, unlockTime, otherAccount } = await loadFixture(
-          deployOneYearLockFixture
-        );
-
-        // We can increase the time in Hardhat Network
-        await time.increaseTo(unlockTime);
-
-        // We use lock.connect() to send a transaction from another account
-        await expect(lock.connect(otherAccount).withdraw()).to.be.revertedWith(
-          "You aren't the owner"
-        );
-      });
-
-      it("Shouldn't fail if the unlockTime has arrived and the owner calls it", async function () {
-        const { lock, unlockTime } = await loadFixture(
-          deployOneYearLockFixture
-        );
-
-        // Transactions are sent using the first signer by default
-        await time.increaseTo(unlockTime);
-
-        await expect(lock.withdraw()).not.to.be.reverted;
-      });
-    });
-
-    describe("Events", function () {
-      it("Should emit an event on withdrawals", async function () {
-        const { lock, unlockTime, lockedAmount } = await loadFixture(
-          deployOneYearLockFixture
-        );
-
-        await time.increaseTo(unlockTime);
-
-        await expect(lock.withdraw())
-          .to.emit(lock, "Withdrawal")
-          .withArgs(lockedAmount, anyValue); // We accept any value as `when` arg
-      });
-    });
-
-    describe("Transfers", function () {
-      it("Should transfer the funds to the owner", async function () {
-        const { lock, unlockTime, lockedAmount, owner } = await loadFixture(
-          deployOneYearLockFixture
-        );
-
-        await time.increaseTo(unlockTime);
-
-        await expect(lock.withdraw()).to.changeEtherBalances(
-          [owner, lock],
-          [lockedAmount, -lockedAmount]
-        );
-      });
-    });
-  });
 });
