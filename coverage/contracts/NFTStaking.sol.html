@@ -22,7 +22,7 @@
       <div class='fl pad1y space-right2'>
         <span class="strong">100% </span>
         <span class="quiet">Statements</span>
-        <span class='fraction'>40/40</span>
+        <span class='fraction'>37/37</span>
       </div>
       <div class='fl pad1y space-right2'>
         <span class="strong">86.36% </span>
@@ -37,7 +37,7 @@
       <div class='fl pad1y space-right2'>
         <span class="strong">100% </span>
         <span class="quiet">Lines</span>
-        <span class='fraction'>61/61</span>
+        <span class='fraction'>54/54</span>
       </div>
     </div>
   </div>
@@ -244,20 +244,7 @@
 199
 200
 201
-202
-203
-204
-205
-206
-207
-208
-209
-210
-211
-212
-213
-214
-215</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+202</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -325,7 +312,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6×</span>
-<span class="cline-any cline-yes">6×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2×</span>
@@ -371,21 +358,8 @@
 <span class="cline-any cline-yes">3×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3×</span>
-<span class="cline-any cline-yes">3×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-yes">2×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">2×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -481,8 +455,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 &nbsp;
 contract NFTStaking is ERC721Holder, ReentrancyGuard {
+    using EnumerableSet for EnumerableSet.UintSet;
+&nbsp;
     IERC721 public stakingToken;
     IERC20 public rewardToken;
 &nbsp;
@@ -493,16 +470,13 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
     uint REWARD_PRECISION = 1e12;
 &nbsp;
     struct stakerInfo {
-        uint[] tokenIds;
+        EnumerableSet.UintSet tokenIds;
         uint amount;
         uint rewardsDebt;
     }
 &nbsp;
-    mapping(address =&gt; stakerInfo) public stakers;
+    mapping(address =&gt; stakerInfo) private stakers;
     mapping(uint =&gt; address) public owner;
-&nbsp;
-    //tokenId =&gt; owner's tokenIds' index
-    mapping(uint =&gt; uint) private index;
 &nbsp;
     event Stake(address staker, uint[] tokenId);
     event ClaimRewards(address staker, uint amount);
@@ -535,11 +509,11 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
             );
 &nbsp;
             //update the staker tokenIds
-            staker.tokenIds.push(_tokenIds[i]);
+            staker.tokenIds.add(_tokenIds[i]);
 &nbsp;
             //update the owner and index info
             owner[_tokenIds[i]] = msg.sender;
-            index[_tokenIds[i]] = staker.amount + i;
+            // _index.add(_tokenIds[i]);
         }
 &nbsp;
         updateState();
@@ -584,24 +558,11 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
         for (uint i = 0; i &lt; length; i++) {
             uint token = _tokenIds[i];
 &nbsp;
-            //staker's tokenIds length
-            uint stakerLength = staker.tokenIds.length;
+            // //staker's tokenIds length
+            // uint stakerLength = staker.tokenIds.length;
             require(owner[token] == msg.sender, "it is not token you staked");
 &nbsp;
-            //index of the withdrawl token
-            uint _index = index[token];
-&nbsp;
-            //the last tokenId of the staker's tokenIds
-            uint lastToken = staker.tokenIds[stakerLength - 1];
-&nbsp;
-            //replace the last tokenId to withdrawl tokenId index
-            staker.tokenIds[_index] = lastToken;
-            index[lastToken] = _index;
-&nbsp;
-            //delete the last tokenId
-            staker.tokenIds.pop();
-&nbsp;
-            delete index[token];
+            staker.tokenIds.remove(token);
 &nbsp;
             stakingToken.safeTransferFrom(address(this), msg.sender, token);
         }
@@ -616,8 +577,8 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
      */
     function viewStakeInfo(
         address _staker
-    ) external view returns (uint[] memory) {
-        return stakers[_staker].tokenIds;
+    ) external view returns (uint256[] memory) {
+        return stakers[_staker].tokenIds.values();
     }
 &nbsp;
     function updateState() internal {
@@ -691,7 +652,7 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
 </div><!-- /wrapper -->
 <div class='footer quiet pad2 space-top1 center small'>
   Code coverage
-  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Fri Dec 01 2023 12:41:36 GMT-0500 (Eastern Standard Time)
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Fri Dec 01 2023 13:23:10 GMT-0500 (Eastern Standard Time)
 </div>
 </div>
 <script src="../prettify.js"></script>

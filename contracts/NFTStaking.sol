@@ -8,8 +8,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract NFTStaking is ERC721Holder, ReentrancyGuard {
+    using EnumerableSet for EnumerableSet.UintSet;
+
     IERC721 public stakingToken;
     IERC20 public rewardToken;
 
@@ -20,16 +23,13 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
     uint REWARD_PRECISION = 1e12;
 
     struct stakerInfo {
-        uint[] tokenIds;
+        EnumerableSet.UintSet tokenIds;
         uint amount;
         uint rewardsDebt;
     }
 
-    mapping(address => stakerInfo) public stakers;
+    mapping(address => stakerInfo) private stakers;
     mapping(uint => address) public owner;
-
-    //tokenId => owner's tokenIds' index
-    mapping(uint => uint) private index;
 
     event Stake(address staker, uint[] tokenId);
     event ClaimRewards(address staker, uint amount);
@@ -62,11 +62,11 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
             );
 
             //update the staker tokenIds
-            staker.tokenIds.push(_tokenIds[i]);
+            staker.tokenIds.add(_tokenIds[i]);
 
             //update the owner and index info
             owner[_tokenIds[i]] = msg.sender;
-            index[_tokenIds[i]] = staker.amount + i;
+            // _index.add(_tokenIds[i]);
         }
 
         updateState();
@@ -111,24 +111,11 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
         for (uint i = 0; i < length; i++) {
             uint token = _tokenIds[i];
 
-            //staker's tokenIds length
-            uint stakerLength = staker.tokenIds.length;
+            // //staker's tokenIds length
+            // uint stakerLength = staker.tokenIds.length;
             require(owner[token] == msg.sender, "it is not token you staked");
 
-            //index of the withdrawl token
-            uint _index = index[token];
-
-            //the last tokenId of the staker's tokenIds
-            uint lastToken = staker.tokenIds[stakerLength - 1];
-
-            //replace the last tokenId to withdrawl tokenId index
-            staker.tokenIds[_index] = lastToken;
-            index[lastToken] = _index;
-
-            //delete the last tokenId
-            staker.tokenIds.pop();
-
-            delete index[token];
+            staker.tokenIds.remove(token);
 
             stakingToken.safeTransferFrom(address(this), msg.sender, token);
         }
@@ -143,8 +130,8 @@ contract NFTStaking is ERC721Holder, ReentrancyGuard {
      */
     function viewStakeInfo(
         address _staker
-    ) external view returns (uint[] memory) {
-        return stakers[_staker].tokenIds;
+    ) external view returns (uint256[] memory) {
+        return stakers[_staker].tokenIds.values();
     }
 
     function updateState() internal {

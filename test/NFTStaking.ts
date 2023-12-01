@@ -86,8 +86,6 @@ describe("NFTStaking", function () {
         });
 
         it("Success - confirm the updated staker info", async function () {
-            const stakerInfo = await nftStaking.stakers(alice.address);
-            expect(stakerInfo).to.eql([4n, 0n]);
 
             expect(await nftStaking.viewStakeInfo(alice.address)).to.eql([0n, 1n, 2n, 3n]);
         });
