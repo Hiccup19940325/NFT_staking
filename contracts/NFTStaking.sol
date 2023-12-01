@@ -120,6 +120,8 @@ contract NFTStaking {
             //delete the last tokenId
             staker.tokenIds.pop();
 
+            delete index[token];
+
             stakingToken.safeTransferFrom(address(this), msg.sender, token);
         }
 
