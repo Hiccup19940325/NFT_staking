@@ -6,8 +6,9 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract NFTStaking {
+contract NFTStaking is ReentrancyGuard {
     IERC721 public stakingToken;
     IERC20 public rewardToken;
 
