@@ -48,7 +48,7 @@ contract NFTStaking is ReentrancyGuard {
      * @dev deposit the NFT into staking pool
      * @param _tokenIds deposited tokenIds
      */
-    function stake(uint[] memory _tokenIds) external {
+    function stake(uint[] memory _tokenIds) external nonReentrant {
         require(_tokenIds.length != 0, "amount should be more than 0");
 
         stakerInfo storage staker = stakers[msg.sender];
@@ -64,7 +64,8 @@ contract NFTStaking is ReentrancyGuard {
             index[_tokenIds[i]] = staker.amount + i;
         }
 
-        claimRewards();
+        updateState();
+        claim();
 
         staker.amount += _tokenIds.length;
 
@@ -81,7 +82,7 @@ contract NFTStaking is ReentrancyGuard {
      * @dev withdraw the deposited tokens
      * @param _tokenIds tokenIds of the withdrawl token
      */
-    function withDraw(uint[] memory _tokenIds) external {
+    function withDraw(uint[] memory _tokenIds) external nonReentrant {
         require(_tokenIds.length != 0, "amount should be more than 0");
         stakerInfo storage staker = stakers[msg.sender];
 
@@ -91,7 +92,8 @@ contract NFTStaking is ReentrancyGuard {
             "your staked tokens is less than your required tokens"
         );
 
-        claimRewards();
+        updateState();
+        claim();
 
         uint length = _tokenIds.length;
 
@@ -152,14 +154,8 @@ contract NFTStaking is ReentrancyGuard {
         lastUpdatedBlock = block.number;
     }
 
-    /**
-     * @dev update the states and claim the pending reward token
-     */
-    function claimRewards() public {
+    function claim() internal {
         stakerInfo storage staker = stakers[msg.sender];
-
-        updateState();
-
         uint rewardsToHarvest = (staker.amount * accRewardsPerShare) /
             REWARD_PRECISION -
             staker.rewardsDebt;
@@ -178,6 +174,14 @@ contract NFTStaking is ReentrancyGuard {
         rewardToken.transfer(msg.sender, rewardsToHarvest);
 
         emit ClaimRewards(msg.sender, rewardsToHarvest);
+    }
+
+    /**
+     * @dev update the states and claim the pending reward token
+     */
+    function claimRewards() external nonReentrant {
+        updateState();
+        claim();
     }
 
     /**

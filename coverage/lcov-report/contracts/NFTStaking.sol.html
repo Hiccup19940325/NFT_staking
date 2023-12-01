@@ -22,22 +22,22 @@
       <div class='fl pad1y space-right2'>
         <span class="strong">100% </span>
         <span class="quiet">Statements</span>
-        <span class='fraction'>37/37</span>
+        <span class='fraction'>40/40</span>
       </div>
       <div class='fl pad1y space-right2'>
-        <span class="strong">100% </span>
+        <span class="strong">86.36% </span>
         <span class="quiet">Branches</span>
-        <span class='fraction'>16/16</span>
+        <span class='fraction'>19/22</span>
       </div>
       <div class='fl pad1y space-right2'>
         <span class="strong">100% </span>
         <span class="quiet">Functions</span>
-        <span class='fraction'>7/7</span>
+        <span class='fraction'>8/8</span>
       </div>
       <div class='fl pad1y space-right2'>
         <span class="strong">100% </span>
         <span class="quiet">Lines</span>
-        <span class='fraction'>58/58</span>
+        <span class='fraction'>61/61</span>
       </div>
     </div>
   </div>
@@ -246,7 +246,11 @@
 201
 202
 203
-204</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+204
+205
+206
+207
+208</td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -312,6 +316,7 @@
 <span class="cline-any cline-yes">6×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">2×</span>
 <span class="cline-any cline-yes">2×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2×</span>
@@ -340,6 +345,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3×</span>
+<span class="cline-any cline-yes">3×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">3×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -401,13 +407,7 @@
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-yes">6×</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">6×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -426,6 +426,14 @@
 <span class="cline-any cline-yes">4×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">4×</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1×</span>
+<span class="cline-any cline-yes">1×</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -499,7 +507,7 @@ contract NFTStaking is ReentrancyGuard {
      * @dev deposit the NFT into staking pool
      * @param _tokenIds deposited tokenIds
      */
-    function stake(uint[] memory _tokenIds) external {
+    function stake(uint[] memory _tokenIds) external <span class="missing-if-branch" title="else path not taken" >E</span>nonReentrant {
         require(_tokenIds.length != 0, "amount should be more than 0");
 &nbsp;
         stakerInfo storage staker = stakers[msg.sender];
@@ -515,7 +523,8 @@ contract NFTStaking is ReentrancyGuard {
             index[_tokenIds[i]] = staker.amount + i;
         }
 &nbsp;
-        claimRewards();
+        updateState();
+        claim();
 &nbsp;
         staker.amount += _tokenIds.length;
 &nbsp;
@@ -532,7 +541,7 @@ contract NFTStaking is ReentrancyGuard {
      * @dev withdraw the deposited tokens
      * @param _tokenIds tokenIds of the withdrawl token
      */
-    function withDraw(uint[] memory _tokenIds) external {
+    function withDraw(uint[] memory _tokenIds) external <span class="missing-if-branch" title="else path not taken" >E</span>nonReentrant {
         require(_tokenIds.length != 0, "amount should be more than 0");
         stakerInfo storage staker = stakers[msg.sender];
 &nbsp;
@@ -542,7 +551,8 @@ contract NFTStaking is ReentrancyGuard {
             "your staked tokens is less than your required tokens"
         );
 &nbsp;
-        claimRewards();
+        updateState();
+        claim();
 &nbsp;
         uint length = _tokenIds.length;
 &nbsp;
@@ -603,14 +613,8 @@ contract NFTStaking is ReentrancyGuard {
         lastUpdatedBlock = block.number;
     }
 &nbsp;
-    /**
-     * @dev update the states and claim the pending reward token
-     */
-    function claimRewards() public {
+    function claim() internal {
         stakerInfo storage staker = stakers[msg.sender];
-&nbsp;
-        updateState();
-&nbsp;
         uint rewardsToHarvest = (staker.amount * accRewardsPerShare) /
             REWARD_PRECISION -
             staker.rewardsDebt;
@@ -629,6 +633,14 @@ contract NFTStaking is ReentrancyGuard {
         rewardToken.transfer(msg.sender, rewardsToHarvest);
 &nbsp;
         emit ClaimRewards(msg.sender, rewardsToHarvest);
+    }
+&nbsp;
+    /**
+     * @dev update the states and claim the pending reward token
+     */
+    function claimRewards() external <span class="missing-if-branch" title="else path not taken" >E</span>nonReentrant {
+        updateState();
+        claim();
     }
 &nbsp;
     /**
@@ -658,7 +670,7 @@ contract NFTStaking is ReentrancyGuard {
 </div><!-- /wrapper -->
 <div class='footer quiet pad2 space-top1 center small'>
   Code coverage
-  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Fri Dec 01 2023 11:25:23 GMT-0500 (Eastern Standard Time)
+  generated by <a href="http://istanbul-js.org/" target="_blank">istanbul</a> at Fri Dec 01 2023 11:48:35 GMT-0500 (Eastern Standard Time)
 </div>
 </div>
 <script src="../prettify.js"></script>
