@@ -63,16 +63,21 @@ describe("NFTStaking", function () {
 
         it("Success", async function () {
 
+            //alice approved the token [0,1,2,3] to stakingPool
             await stakingToken.connect(alice).approve(nftStaking.getAddress(), 0);
             await stakingToken.connect(alice).approve(nftStaking.getAddress(), 1);
             await stakingToken.connect(alice).approve(nftStaking.getAddress(), 2);
             await stakingToken.connect(alice).approve(nftStaking.getAddress(), 3);
+
+            //bob approved the token [5,6] to stakingPool
             await stakingToken.connect(bob).approve(nftStaking.getAddress(), 5);
             await stakingToken.connect(bob).approve(nftStaking.getAddress(), 6);
 
+            //initial pending is 0
             const pending0 = await nftStaking.connect(bob).pendingRewards();
             expect(pending0).to.equal(0n);
 
+            //alice staked the token [0,1,2,3] to the pool
             await nftStaking.connect(alice).stake([0, 1, 2, 3]);
         });
 
@@ -80,26 +85,33 @@ describe("NFTStaking", function () {
             expect(await stakingToken.balanceOf(nftStaking.getAddress())).to.equal(4n)
         });
 
-        it("Success - confirm the staker info", async function () {
+        it("Success - confirm the updated staker info", async function () {
             const stakerInfo = await nftStaking.stakers(alice.address);
             expect(stakerInfo).to.eql([4n, 0n]);
 
-            const token = await nftStaking.viewStakeInfo(alice.address)
             expect(await nftStaking.viewStakeInfo(alice.address)).to.eql([0n, 1n, 2n, 3n]);
         });
     });
 
     describe("Claim", function () {
         it("Success - confirm the reward increase", async function () {
+
+            //alice rewardToken balance before alice claiming 
             const balance0 = await rewardToken.balanceOf(alice.address);
 
+            //bob staked token [5,6] to the pool
             await nftStaking.connect(bob).stake([5, 6]);
 
+            //alice pending reward is greater than 0
             const pending = await nftStaking.connect(alice).pendingRewards();
             expect(pending).to.gt(0n);
 
+            //alice claim the rewards
             await nftStaking.connect(alice).claimRewards();
+
             const balance1 = await rewardToken.balanceOf(alice.address);
+
+            //confirm the alice reward token increasement
             expect(balance0).to.lt(balance1);
         });
     });
@@ -121,15 +133,23 @@ describe("NFTStaking", function () {
             await expect(nftStaking.connect(bob).withDraw([0])).to.be.revertedWith("it is not token you staked")
         });
 
-        it("Success - confirm the staker's tokenId", async function () {
+        it("Success - confirm the updated staker's tokenId", async function () {
+
+            //alice withdraw the token [0]
             await nftStaking.connect(alice).withDraw([0]);
             const token = await nftStaking.viewStakeInfo(alice.address);
+
+            //alice's staked token is updated to [3,1,2]
             expect(token).to.eql([3n, 1n, 2n])
         });
 
         it("Success - confirm the staker's tokenId after rewithdraw", async function () {
+
+            //alice withdraw the token [3]
             await nftStaking.connect(alice).withDraw([3]);
             const token = await nftStaking.viewStakeInfo(alice.address);
+
+            //alice's staked token is updated to [2,1]
             expect(token).to.eql([2n, 1n])
         });
     });

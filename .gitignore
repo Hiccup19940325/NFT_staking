@@ -10,4 +10,5 @@ node_modules
 /typechain-types
 
 # solidity-coverage files
+/coverage
 /coverage.json

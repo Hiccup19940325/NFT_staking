@@ -40,7 +40,7 @@ FNH:7
 FNDA:1,constructor
 FNDA:3,stake
 FNDA:6,withDraw
-FNDA:4,viewStakeInfo
+FNDA:3,viewStakeInfo
 FNDA:6,updateState
 FNDA:6,claimRewards
 FNDA:2,pendingRewards
@@ -79,7 +79,7 @@ DA:118,2
 DA:121,2
 DA:123,2
 DA:126,2
-DA:137,4
+DA:137,3
 DA:141,6
 DA:142,1
 DA:143,1
