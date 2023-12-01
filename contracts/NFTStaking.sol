@@ -7,8 +7,9 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-contract NFTStaking is ReentrancyGuard {
+contract NFTStaking is ERC721Holder, ReentrancyGuard {
     IERC721 public stakingToken;
     IERC20 public rewardToken;
 
@@ -48,13 +49,17 @@ contract NFTStaking is ReentrancyGuard {
      * @dev deposit the NFT into staking pool
      * @param _tokenIds deposited tokenIds
      */
-    function stake(uint[] memory _tokenIds) external nonReentrant {
+    function stake(uint[] calldata _tokenIds) external nonReentrant {
         require(_tokenIds.length != 0, "amount should be more than 0");
 
         stakerInfo storage staker = stakers[msg.sender];
 
         for (uint i = 0; i < _tokenIds.length; i++) {
-            stakingToken.transferFrom(msg.sender, address(this), _tokenIds[i]);
+            stakingToken.safeTransferFrom(
+                msg.sender,
+                address(this),
+                _tokenIds[i]
+            );
 
             //update the staker tokenIds
             staker.tokenIds.push(_tokenIds[i]);
@@ -82,7 +87,7 @@ contract NFTStaking is ReentrancyGuard {
      * @dev withdraw the deposited tokens
      * @param _tokenIds tokenIds of the withdrawl token
      */
-    function withDraw(uint[] memory _tokenIds) external nonReentrant {
+    function withDraw(uint[] calldata _tokenIds) external nonReentrant {
         require(_tokenIds.length != 0, "amount should be more than 0");
         stakerInfo storage staker = stakers[msg.sender];
 
@@ -188,8 +193,10 @@ contract NFTStaking is ReentrancyGuard {
      * @dev show the pending Rewards
      * @return pendingReward pending reward
      */
-    function pendingRewards() external view returns (uint pendingReward) {
-        stakerInfo storage staker = stakers[msg.sender];
+    function pendingRewards(
+        address _staker
+    ) external view returns (uint pendingReward) {
+        stakerInfo storage staker = stakers[_staker];
 
         uint accPerShare = accRewardsPerShare;
 

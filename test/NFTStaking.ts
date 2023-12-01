@@ -74,7 +74,7 @@ describe("NFTStaking", function () {
             await stakingToken.connect(bob).approve(nftStaking.getAddress(), 6);
 
             //initial pending is 0
-            const pending0 = await nftStaking.connect(bob).pendingRewards();
+            const pending0 = await nftStaking.pendingRewards(bob.address);
             expect(pending0).to.equal(0n);
 
             //alice staked the token [0,1,2,3] to the pool
@@ -103,7 +103,7 @@ describe("NFTStaking", function () {
             await nftStaking.connect(bob).stake([5, 6]);
 
             //alice pending reward is greater than 0
-            const pending = await nftStaking.connect(alice).pendingRewards();
+            const pending = await nftStaking.pendingRewards(alice.address);
             expect(pending).to.gt(0n);
 
             //alice claim the rewards
